@@ -89,18 +89,16 @@ export default class LinkNodesInCanvas extends Plugin {
 			const file = this.app.vault.getFileByPath(e.to.node.filePath);
 			if (!file) return;
 
-			const link = this.app.fileManager.generateMarkdownLink(file, e.canvas.view.file.path);
-
+			// add a caret signifier to the link so we can find it in the note
+			const link = `\n${this.app.fileManager.generateMarkdownLink(file, e.canvas.view.file.path)}${'^canvas-link'}\n`;
 			if (e.from.node.filePath) {
 				const fromFile = this.app.vault.getFileByPath(e.from.node.filePath);
 				if (!fromFile) return;
-
 				const content = await this.app.vault.cachedRead(fromFile);
-				await this.app.vault.append(fromFile, `\n${link}`);
+				await this.app.vault.append(fromFile, link);
 			} else {
 				const fromNode = e.from.node;
-				fromNode.setText(`${fromNode.text}\n${link}`);
-
+				fromNode.setText(`${fromNode.text}${link}`);
 				e.canvas.requestSave();
 			}
 		}, 1000);
@@ -113,18 +111,21 @@ export default class LinkNodesInCanvas extends Plugin {
 			const fromNode = edge.from.node;
 			const file = this.app.vault.getFileByPath(toNode.filePath);
 			if (!file) return;
-			const link = this.app.fileManager.generateMarkdownLink(file, edge.to.node.filePath);
 
+			// add a caret signifier to the link so we can find it in the note
+			const link = `\n${this.app.fileManager.generateMarkdownLink(file, edge.to.node.filePath)}${'^canvas-link'}\n`;
+			// create a regex to find the link in the original node
+			const linkRegex = new RegExp(`${link.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&")}`, 'g');
 			if (fromNode?.filePath) {
 				const fromFile = this.app.vault.getFileByPath(fromNode.filePath);
 				if (!fromFile) return;
 				const content = await this.app.vault.read(fromFile);
-				const newContent = content.replaceAll(link, '');
+				// remove the link from the original node
+				const newContent = content.replace(linkRegex, '');
 				await this.app.vault.modify(fromFile, newContent);
 			} else {
 				const fromNode = edge.from.node;
-				fromNode.setText((fromNode.text as string).replaceAll(link, ''));
-
+				fromNode.setText((fromNode.text as string).replace(linkRegex, ''));
 				canvas.requestSave();
 			}
 		};
